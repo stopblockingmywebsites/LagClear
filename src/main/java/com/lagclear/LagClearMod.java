@@ -20,23 +20,23 @@ public class LagClearMod implements ModInitializer {
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 	
 	private static int tickCounter = 0;
-	private static long lastWarningTick1Min = 0;  // 1 dakika uyarısı
-	private static long lastWarningTick30Sec = 0; // 30 saniye uyarısı
-	private static boolean actionbarShown = false; // ActionBar gösterildi mi
+	private static long lastWarningTick1Min = 0;  // 1 minute warning
+	private static long lastWarningTick30Sec = 0; // 30 second warning
+	private static boolean actionbarShown = false; // Was ActionBar shown?
 
 	@Override
 	public void onInitialize() {
-		// Config dosyasını yükle
+		// Load config file
 		LagClearConfig.loadConfig();
 		
 		if (!LagClearConfig.isEnabled()) {
-			LOGGER.info("[Lag Clear Mod] Pasif durumdadır. Aktif etmek için: /lagclear config enable");
+			LOGGER.info("[Lag Clear Mod] Disabled. To enable: /lagclear config enable");
 			return;
 		}
 		
-		LOGGER.info("[Lag Clear Mod] Başlatılıyor...");
+		LOGGER.info("[Lag Clear Mod] Starting...");
 		
-		// Server tick event'ini dinle
+		// Listen to server tick event
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			if (!LagClearConfig.isEnabled()) {
 				return;
@@ -46,34 +46,34 @@ public class LagClearMod implements ModInitializer {
 			int interval = LagClearConfig.getCleanupIntervalTicks();
 			int remainingTicks = interval - tickCounter;
 			
-			// 1 dakika kaldığında uyar (1200 ticks = 60 saniye)
+			// Warn when 1 minute remains (1200 ticks = 60 seconds)
 			if (remainingTicks == 1200 && lastWarningTick1Min != tickCounter) {
-				broadcastMessage(server, "§e[Lag Clear] Düşen eşyalar 1 DAKIKA içinde temizlenecek!");
+				broadcastMessage(server, "§e[Lag Clear] Dropped items will be cleared in 1 MINUTE!");
 				lastWarningTick1Min = tickCounter;
 			}
 			
-			// 30 saniye kaldığında uyar (600 ticks = 30 saniye)
+			// Warn when 30 seconds remain (600 ticks = 30 seconds)
 			if (remainingTicks == 600 && lastWarningTick30Sec != tickCounter) {
-				broadcastMessage(server, "§6[Lag Clear] Düşen eşyalar 30 SANİYE içinde temizlenecek!");
+				broadcastMessage(server, "§6[Lag Clear] Dropped items will be cleared in 30 SECONDS!");
 				lastWarningTick30Sec = tickCounter;
 			}
 			
-			// Son 10 saniye de ActionBar'da geri sayım (200 ticks = 10 saniye)
+			// Countdown in ActionBar during the last 10 seconds (200 ticks = 10 seconds)
 			if (remainingTicks > 0 && remainingTicks <= 200) {
-				int secondsRemaining = (remainingTicks + 19) / 20; // Yukarı yuvarla
+				int secondsRemaining = (remainingTicks + 19) / 20; // Round up
 				for (var player : server.getPlayerList().getPlayers()) {
 					player.displayClientMessage(
-						net.minecraft.network.chat.Component.literal("§c⚠ Temizleme: " + secondsRemaining + " saniye"),
+						net.minecraft.network.chat.Component.literal("§c⚠ Cleanup: " + secondsRemaining + " seconds"),
 						true // ActionBar
 					);
 				}
 			}
 			
-			// Temizleme zamanı
+			// Cleanup time
 			if (tickCounter >= interval) {
 				int cleared = clearDroppedItems(server);
-				broadcastMessage(server, "§a[Lag Clear] Düşen eşyalar temizlendi! (" + cleared + " adet)");
-				LOGGER.info("[Lag Clear Mod] Otomatik temizleme: {} eşya kaldırıldı, sonraki temizleme {} dakika sonra", 
+				broadcastMessage(server, "§a[Lag Clear] Dropped items have been cleared! (" + cleared + " items)");
+				LOGGER.info("[Lag Clear Mod] Automatic cleanup: {} items removed, next cleanup in {} minutes", 
 					cleared, LagClearConfig.getCleanupIntervalMinutes());
 				tickCounter = 0;
 				lastWarningTick1Min = 0;
@@ -82,7 +82,7 @@ public class LagClearMod implements ModInitializer {
 			}
 		});
 		
-		// /lagclear komutu ekle
+		// Add /lagclear command
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
 			dispatcher.register(literal("lagclear")
 				.then(literal("config")
@@ -90,7 +90,7 @@ public class LagClearMod implements ModInitializer {
 						.executes(context -> {
 							LagClearConfig.setEnabled(true);
 							context.getSource().sendSuccess(
-								() -> net.minecraft.network.chat.Component.literal("§a[Lag Clear] Mod aktifleştirildi!"),
+								() -> net.minecraft.network.chat.Component.literal("§a[Lag Clear] Mod enabled!"),
 								true
 							);
 							return 1;
@@ -100,7 +100,7 @@ public class LagClearMod implements ModInitializer {
 						.executes(context -> {
 							LagClearConfig.setEnabled(false);
 							context.getSource().sendSuccess(
-								() -> net.minecraft.network.chat.Component.literal("§a[Lag Clear] Mod pasifleştirildi!"),
+								() -> net.minecraft.network.chat.Component.literal("§a[Lag Clear] Mod disabled!"),
 								true
 							);
 							return 1;
@@ -113,7 +113,7 @@ public class LagClearMod implements ModInitializer {
 								LagClearConfig.setCleanupIntervalMinutes(minutes);
 								context.getSource().sendSuccess(
 									() -> net.minecraft.network.chat.Component.literal(
-										"§a[Lag Clear] Temizleme aralığı " + minutes + " dakika olarak ayarlandı!"
+										"§a[Lag Clear] Cleanup interval set to " + minutes + " minutes!"
 									),
 									true
 								);
@@ -123,11 +123,11 @@ public class LagClearMod implements ModInitializer {
 					)
 					.then(literal("status")
 						.executes(context -> {
-							String status = LagClearConfig.isEnabled() ? "§aAktif" : "§cPasif";
+							String status = LagClearConfig.isEnabled() ? "§aEnabled" : "§cDisabled";
 							String interval = String.valueOf(LagClearConfig.getCleanupIntervalMinutes());
 							context.getSource().sendSuccess(
 								() -> net.minecraft.network.chat.Component.literal(
-									"§e[Lag Clear] Durum: " + status + " §e| Aralık: " + interval + " dakika"
+									"§e[Lag Clear] Status: " + status + " §e| Interval: " + interval + " minutes"
 								),
 								true
 							);
@@ -138,7 +138,7 @@ public class LagClearMod implements ModInitializer {
 				.executes(context -> {
 					if (!LagClearConfig.isEnabled()) {
 						context.getSource().sendFailure(
-							net.minecraft.network.chat.Component.literal("§c[Lag Clear] Mod pasif durumdadır!")
+							net.minecraft.network.chat.Component.literal("§c[Lag Clear] Mod is disabled!")
 						);
 						return 0;
 					}
@@ -146,7 +146,7 @@ public class LagClearMod implements ModInitializer {
 					int cleared = clearDroppedItems(server);
 					context.getSource().sendSuccess(
 						() -> net.minecraft.network.chat.Component.literal(
-							"§a[Lag Clear] " + cleared + " adet düşen eşya temizlendi!"
+							"§a[Lag Clear] " + cleared + " dropped items cleared!"
 						),
 						true
 					);
@@ -155,8 +155,8 @@ public class LagClearMod implements ModInitializer {
 			);
 		});
 		
-		LOGGER.info("[Lag Clear Mod] Başarıyla yüklendi! Temizleme aralığı: {} dakika", LagClearConfig.getCleanupIntervalMinutes());
-		LOGGER.info("[Lag Clear Mod] Komutlar: /lagclear (manuel temizle) | /lagclear config (ayarlar)");
+		LOGGER.info("[Lag Clear Mod] Successfully loaded! Cleanup interval: {} minutes", LagClearConfig.getCleanupIntervalMinutes());
+		LOGGER.info("[Lag Clear Mod] Commands: /lagclear (manual cleanup) | /lagclear config (settings)");
 	}
 	
 	private static void broadcastMessage(MinecraftServer server, String message) {
@@ -169,12 +169,12 @@ public class LagClearMod implements ModInitializer {
 	private static int clearDroppedItems(MinecraftServer server) {
 		int totalCleared = 0;
 		
-		// Tüm dünyaları kontrol et
+		// Check all worlds
 		for (ServerLevel level : server.getAllLevels()) {
-			// Çok geniş bir AABB oluştur (dünya sınırları gibi)
+			// Create a very large AABB (like world boundaries)
 			AABB searchBox = new AABB(-30000000, -64, -30000000, 30000000, 320, 30000000);
 			
-			// Tüm ItemEntity'leri bul ve sil
+			// Find and remove all ItemEntities
 			for (ItemEntity itemEntity : level.getEntitiesOfClass(ItemEntity.class, searchBox)) {
 				itemEntity.discard();
 				totalCleared++;
@@ -182,7 +182,7 @@ public class LagClearMod implements ModInitializer {
 		}
 		
 		if (totalCleared > 0) {
-			LOGGER.info("[Lag Clear Mod] {} adet düşen eşya temizlendi!", totalCleared);
+			LOGGER.info("[Lag Clear Mod] {} dropped items cleared!", totalCleared);
 		}
 		
 		return totalCleared;
